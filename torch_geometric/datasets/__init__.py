@@ -1,13 +1,19 @@
 from .karate import KarateClub
 from .tu_dataset import TUDataset
+from .gnn_benchmark_dataset import GNNBenchmarkDataset
 from .planetoid import Planetoid
 from .citation_full import CitationFull, CoraFull
 from .coauthor import Coauthor
 from .amazon import Amazon
 from .ppi import PPI
 from .reddit import Reddit
+from .reddit2 import Reddit2
+from .flickr import Flickr
+from .yelp import Yelp
 from .qm7 import QM7b
 from .qm9 import QM9
+from .zinc import ZINC
+from .molecule_net import MoleculeNet
 from .entities import Entities
 from .ged_dataset import GEDDataset
 from .mnist_superpixels import MNISTSuperpixels
@@ -30,10 +36,19 @@ from .pascal import PascalVOCKeypoints
 from .pascal_pf import PascalPF
 from .snap_dataset import SNAPDataset
 from .suite_sparse import SuiteSparseMatrixCollection
+from .particle import TrackMLParticleTrackingDataset
+from .aminer import AMiner
+from .word_net import WordNet18, WordNet18RR
+from .wikics import WikiCS
+from .webkb import WebKB
+from .wikipedia_network import WikipediaNetwork
+from .actor import Actor
+from .jodie import JODIEDataset
 
 __all__ = [
     'KarateClub',
     'TUDataset',
+    'GNNBenchmarkDataset',
     'Planetoid',
     'CitationFull',
     'CoraFull',
@@ -41,8 +56,13 @@ __all__ = [
     'Amazon',
     'PPI',
     'Reddit',
+    'Reddit2',
+    'Flickr',
+    'Yelp',
     'QM7b',
     'QM9',
+    'ZINC',
+    'MoleculeNet',
     'Entities',
     'GEDDataset',
     'MNISTSuperpixels',
@@ -65,4 +85,15 @@ __all__ = [
     'PascalPF',
     'SNAPDataset',
     'SuiteSparseMatrixCollection',
+    'TrackMLParticleTrackingDataset',
+    'AMiner',
+    'WordNet18',
+    'WordNet18RR',
+    'WikiCS',
+    'WebKB',
+    'WikipediaNetwork',
+    'Actor',
+    'JODIEDataset',
 ]
+
+classes = __all__

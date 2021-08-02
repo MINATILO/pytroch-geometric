@@ -76,7 +76,15 @@ def to_networkx(data, node_attrs=None, edge_attrs=None, to_undirected=False,
         G = nx.DiGraph()
 
     G.add_nodes_from(range(data.num_nodes))
-    values = {key: data[key].squeeze().tolist() for key in data.keys}
+
+    values = {}
+    for key, item in data:
+        if torch.is_tensor(item):
+            values[key] = item.squeeze().tolist()
+        else:
+            values[key] = item
+        if isinstance(values[key], (list, tuple)) and len(values[key]) == 1:
+            values[key] = item[0]
 
     for i, (u, v) in enumerate(data.edge_index.t().tolist()):
 
@@ -107,17 +115,17 @@ def from_networkx(G):
 
     G = nx.convert_node_labels_to_integers(G)
     G = G.to_directed() if not nx.is_directed(G) else G
-    edge_index = torch.tensor(list(G.edges)).t().contiguous()
+    edge_index = torch.LongTensor(list(G.edges)).t().contiguous()
 
     data = {}
 
     for i, (_, feat_dict) in enumerate(G.nodes(data=True)):
         for key, value in feat_dict.items():
-            data[key] = [value] if i == 0 else data[key] + [value]
+            data[str(key)] = [value] if i == 0 else data[str(key)] + [value]
 
     for i, (_, _, feat_dict) in enumerate(G.edges(data=True)):
         for key, value in feat_dict.items():
-            data[key] = [value] if i == 0 else data[key] + [value]
+            data[str(key)] = [value] if i == 0 else data[str(key)] + [value]
 
     for key, item in data.items():
         try:

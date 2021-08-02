@@ -1,7 +1,5 @@
 import torch
-from torch.nn import Parameter
-
-from ..inits import uniform
+from torch.nn import Linear
 
 
 class DenseGraphConv(torch.nn.Module):
@@ -15,14 +13,14 @@ class DenseGraphConv(torch.nn.Module):
         self.out_channels = out_channels
         self.aggr = aggr
 
-        self.weight = Parameter(torch.Tensor(in_channels, out_channels))
-        self.lin = torch.nn.Linear(in_channels, out_channels, bias=bias)
+        self.lin_rel = Linear(in_channels, out_channels, bias=False)
+        self.lin_root = Linear(in_channels, out_channels, bias=bias)
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        uniform(self.in_channels, self.weight)
-        self.lin.reset_parameters()
+        self.lin_rel.reset_parameters()
+        self.lin_root.reset_parameters()
 
     def forward(self, x, adj, mask=None):
         r"""
@@ -41,20 +39,24 @@ class DenseGraphConv(torch.nn.Module):
         """
         x = x.unsqueeze(0) if x.dim() == 2 else x
         adj = adj.unsqueeze(0) if adj.dim() == 2 else adj
-        B, N, _ = adj.size()
+        B, N, C = x.size()
 
-        out = torch.matmul(adj, x)
-        out = torch.matmul(out, self.weight)
-
-        if self.aggr == 'mean':
-            out = out / adj.sum(dim=-1, keepdim=True).clamp(min=1)
+        if self.aggr in ['add', 'mean']:
+            out = torch.matmul(adj, x)
+            if self.aggr == 'mean':
+                out = out / adj.sum(dim=-1, keepdim=True).clamp_(min=1)
         elif self.aggr == 'max':
-            out = out.max(dim=-1)[0]
+            out = x.unsqueeze(-2).repeat(1, 1, N, 1)
+            adj = adj.unsqueeze(-1).expand(B, N, N, C)
+            out[adj == 0] = float('-inf')
+            out = out.max(dim=-3)[0]
+            out[out == float('-inf')] = 0.
 
-        out = out + self.lin(x)
+        out = self.lin_rel(out)
+        out += self.lin_root(x)
 
         if mask is not None:
-            out = out * mask.view(B, N, 1).to(x.dtype)
+            out = out * mask.view(-1, N, 1).to(x.dtype)
 
         return out
 

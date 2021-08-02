@@ -124,6 +124,10 @@ class ShapeNet(InMemoryDataset):
             self.y_mask[i, labels] = 1
 
     @property
+    def num_classes(self):
+        return self.y_mask.size(-1)
+
+    @property
     def raw_file_names(self):
         return list(self.category_ids.values()) + ['train_test_split']
 
@@ -173,7 +177,7 @@ class ShapeNet(InMemoryDataset):
                             f'shuffled_{split}_file_list.json')
             with open(path, 'r') as f:
                 filenames = [
-                    osp.sep.join(name.split(osp.sep)[1:]) + '.txt'
+                    osp.sep.join(name.split('/')[1:]) + '.txt'
                     for name in json.load(f)
                 ]  # Removing first directory.
             data_list = self.process_filenames(filenames)
