@@ -10,16 +10,18 @@ from torch_geometric.data import (InMemoryDataset, Data, download_url,
 
 
 class ZINC(InMemoryDataset):
-    r"""The ZINC dataset from the `"Grammar Variational Autoencoder"
-    <https://arxiv.org/abs/1703.01925>`_ paper, containing about 250,000
-    molecular graphs with up to 38 heavy atoms.
-    The task is to regress a molecular property known as the constrained
-    solubility.
+    r"""The ZINC dataset from the `ZINC database
+    <https://pubs.acs.org/doi/abs/10.1021/acs.jcim.5b00559>`_ and the
+    `"Automatic Chemical Design Using a Data-Driven Continuous Representation
+    of Molecules" <https://arxiv.org/abs/1610.02415>`_ paper, containing about
+    250,000 molecular graphs with up to 38 heavy atoms.
+    The task is to regress a synthetic computed property dubbed as the
+    constrained solubility.
 
     Args:
         root (string): Root directory where the dataset should be saved.
         subset (boolean, optional): If set to :obj:`True`, will only load a
-            subset of the dataset (13,000 molecular graphs), following the
+            subset of the dataset (12,000 molecular graphs), following the
             `"Benchmarking Graph Neural Networks"
             <https://arxiv.org/abs/2003.00982>`_ paper. (default: :obj:`False`)
         split (string, optional): If :obj:`"train"`, loads the training
@@ -101,7 +103,7 @@ class ZINC(InMemoryDataset):
                 y = mol['logP_SA_cycle_normalized'].to(torch.float)
 
                 adj = mol['bond_type']
-                edge_index = adj.nonzero().t().contiguous()
+                edge_index = adj.nonzero(as_tuple=False).t().contiguous()
                 edge_attr = adj[edge_index[0], edge_index[1]].to(torch.long)
 
                 data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr,

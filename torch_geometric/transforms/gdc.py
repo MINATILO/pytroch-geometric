@@ -1,20 +1,9 @@
 import torch
-import numba
 import numpy as np
 from scipy.linalg import expm
 from torch_geometric.utils import add_self_loops, is_undirected, to_dense_adj
 from torch_sparse import coalesce
 from torch_scatter import scatter_add
-
-
-def jit():
-    def decorator(func):
-        try:
-            return numba.jit(cache=True)(func)
-        except RuntimeError:
-            return numba.jit(cache=False)(func)
-
-    return decorator
 
 
 class GDC(object):
@@ -76,6 +65,9 @@ class GDC(object):
                  diffusion_kwargs=dict(method='ppr', alpha=0.15),
                  sparsification_kwargs=dict(method='threshold',
                                             avg_degree=64), exact=True):
+
+        self.__calc_ppr__ = get_calc_ppr()
+
         self.self_loop_weight = self_loop_weight
         self.normalization_in = normalization_in
         self.normalization_out = normalization_out
@@ -281,8 +273,9 @@ class GDC(object):
             _, indptr, out_degree = np.unique(edge_index_np[0],
                                               return_index=True,
                                               return_counts=True)
+            indptr = np.append(indptr, len(edge_index_np[0]))
 
-            neighbors, neighbor_weights = GDC.__calc_ppr__(
+            neighbors, neighbor_weights = self.__calc_ppr__(
                 indptr, edge_index_np[1], out_degree, kwargs['alpha'],
                 kwargs['eps'])
             ppr_normalization = 'col' if normalization == 'col' else 'row'
@@ -359,7 +352,7 @@ class GDC(object):
                 kwargs['eps'] = self.__calculate_eps__(matrix, N,
                                                        kwargs['avg_degree'])
 
-            edge_index = torch.nonzero(matrix >= kwargs['eps']).t()
+            edge_index = (matrix >= kwargs['eps']).nonzero(as_tuple=False).t()
             edge_index_flat = edge_index[0] * N + edge_index[1]
             edge_weight = matrix.flatten()[edge_index_flat]
 
@@ -415,8 +408,8 @@ class GDC(object):
                 kwargs['eps'] = self.__calculate_eps__(edge_weight, num_nodes,
                                                        kwargs['avg_degree'])
 
-            remaining_edge_idx = torch.nonzero(
-                edge_weight >= kwargs['eps']).flatten()
+            remaining_edge_idx = (edge_weight >= kwargs['eps']).nonzero(
+                as_tuple=False).flatten()
             edge_index = edge_index[:, remaining_edge_idx]
             edge_weight = edge_weight[remaining_edge_idx]
         elif method == 'topk':
@@ -493,9 +486,15 @@ class GDC(object):
                 f"PPR matrix normalization {normalization} unknown.")
         return edge_index, edge_weight
 
-    @staticmethod
-    @jit()
-    def __calc_ppr__(indptr, indices, out_degree, alpha, eps):
+    def __repr__(self):
+        return '{}()'.format(self.__class__.__name__)
+
+
+def get_calc_ppr():
+    import numba
+
+    @numba.jit(nopython=True, parallel=True)
+    def calc_ppr(indptr, indices, out_degree, alpha, eps):
         r"""Calculate the personalized PageRank vector for all nodes
         using a variant of the Andersen algorithm
         (see Andersen et al. :Local Graph Partitioning using PageRank Vectors.)
@@ -512,10 +511,12 @@ class GDC(object):
 
         :rtype: (:class:`List[List[int]]`, :class:`List[List[float]]`)
         """
+
         alpha_eps = alpha * eps
-        js = []
-        vals = []
-        for inode in range(len(out_degree)):
+        js = [[0]] * len(out_degree)
+        vals = [[0.]] * len(out_degree)
+        for inode_uint in numba.prange(len(out_degree)):
+            inode = numba.int64(inode_uint)
             p = {inode: 0.0}
             r = {}
             r[inode] = alpha
@@ -540,9 +541,8 @@ class GDC(object):
                     if res_vnode >= alpha_eps * out_degree[vnode]:
                         if vnode not in q:
                             q.append(vnode)
-            js.append(list(p.keys()))
-            vals.append(list(p.values()))
+            js[inode] = list(p.keys())
+            vals[inode] = list(p.values())
         return js, vals
 
-    def __repr__(self):
-        return '{}()'.format(self.__class__.__name__)
+    return calc_ppr

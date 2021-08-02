@@ -6,18 +6,8 @@ import glob
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from scipy.io import loadmat
 from torch_geometric.data import (Data, InMemoryDataset, download_url,
                                   extract_zip)
-
-try:
-    import torchvision.models as models
-    import torchvision.transforms as T
-    from PIL import Image
-except ImportError:
-    models = None
-    T = None
-    Image = None
 
 
 class WILLOWObjectClass(InMemoryDataset):
@@ -31,7 +21,7 @@ class WILLOWObjectClass(InMemoryDataset):
         root (string): Root directory where the dataset should be saved.
         category (string): The category of the images (one of :obj:`"Car"`,
             :obj:`"Duck"`, :obj:`"Face"`, :obj:`"Motorbike"`,
-            :obj:`"Winebottle"`)
+            :obj:`"Winebottle"`).
         transform (callable, optional): A function/transform that takes in an
             :obj:`torch_geometric.data.Data` object and returns a transformed
             version. The data object will be transformed before every access.
@@ -87,8 +77,10 @@ class WILLOWObjectClass(InMemoryDataset):
         os.rename(osp.join(self.root, 'WILLOW-ObjectClass'), self.raw_dir)
 
     def process(self):
-        if models is None or T is None or Image is None:
-            raise ImportError('Package `torchvision` could not be found.')
+        from PIL import Image
+        from scipy.io import loadmat
+        import torchvision.transforms as T
+        import torchvision.models as models
 
         category = self.category.capitalize()
         names = glob.glob(osp.join(self.raw_dir, category, '*.png'))
@@ -143,7 +135,7 @@ class WILLOWObjectClass(InMemoryDataset):
 
             out1 = F.interpolate(vgg16_outputs[0], (256, 256), mode='bilinear',
                                  align_corners=False)
-            out2 = F.interpolate(vgg16_outputs[0], (256, 256), mode='bilinear',
+            out2 = F.interpolate(vgg16_outputs[1], (256, 256), mode='bilinear',
                                  align_corners=False)
 
             for j in range(out1.size(0)):

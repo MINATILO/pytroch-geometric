@@ -1,9 +1,8 @@
 import os
+import warnings
 import os.path as osp
 from math import pi as PI
-import warnings
 
-import ase
 import torch
 import torch.nn.functional as F
 from torch.nn import Embedding, Sequential, Linear, ModuleList
@@ -13,11 +12,6 @@ from torch_scatter import scatter
 from torch_geometric.data.makedirs import makedirs
 from torch_geometric.data import download_url, extract_zip
 from torch_geometric.nn import radius_graph, MessagePassing
-
-try:
-    import schnetpack as spk
-except ImportError:
-    spk = None
 
 qm9_target_dict = {
     0: 'dipole_moment',
@@ -89,7 +83,7 @@ class SchNet(torch.nn.Module):
                  atomref=None):
         super(SchNet, self).__init__()
 
-        assert readout in ['add', 'sum', 'mean']
+        import ase
 
         self.hidden_channels = hidden_channels
         self.num_filters = num_filters
@@ -140,9 +134,8 @@ class SchNet(torch.nn.Module):
 
     @staticmethod
     def from_qm9_pretrained(root, dataset, target):
-        if spk is None:
-            raise ImportError(
-                '`SchNet.from_qm9_pretrained` requires `schnetpack`.')
+        import ase
+        import schnetpack as spk  # noqa
 
         assert target >= 0 and target <= 12
 
@@ -179,7 +172,7 @@ class SchNet(torch.nn.Module):
         path = osp.join(root, 'trained_schnet_models', name, 'best_model')
 
         with warnings.catch_warnings():
-            warnings.filterwarnings('ignore')
+            warnings.simplefilter('ignore')
             state = torch.load(path, map_location='cpu')
 
         net = SchNet(hidden_channels=128, num_filters=128, num_interactions=6,

@@ -40,7 +40,8 @@ class GINConv(MessagePassing):
     """
     def __init__(self, nn: Callable, eps: float = 0., train_eps: bool = False,
                  **kwargs):
-        super(GINConv, self).__init__(aggr='add', **kwargs)
+        kwargs.setdefault('aggr', 'add')
+        super(GINConv, self).__init__(**kwargs)
         self.nn = nn
         self.initial_eps = eps
         if train_eps:
@@ -107,7 +108,8 @@ class GINEConv(MessagePassing):
     """
     def __init__(self, nn: Callable, eps: float = 0., train_eps: bool = False,
                  **kwargs):
-        super(GINEConv, self).__init__(aggr='add', **kwargs)
+        kwargs.setdefault('aggr', 'add')
+        super(GINEConv, self).__init__(**kwargs)
         self.nn = nn
         self.initial_eps = eps
         if train_eps:
@@ -142,8 +144,7 @@ class GINEConv(MessagePassing):
 
         return self.nn(out)
 
-    def message(self, x_j: Tensor, edge_attr: OptTensor) -> Tensor:
-        assert edge_attr is not None
+    def message(self, x_j: Tensor, edge_attr: Tensor) -> Tensor:
         return F.relu(x_j + edge_attr)
 
     def __repr__(self):

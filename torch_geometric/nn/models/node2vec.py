@@ -2,7 +2,6 @@ import torch
 from torch.nn import Embedding
 from torch.utils.data import DataLoader
 from torch_sparse import SparseTensor
-from sklearn.linear_model import LogisticRegression
 
 from torch_geometric.utils.num_nodes import maybe_num_nodes
 
@@ -90,6 +89,8 @@ class Node2Vec(torch.nn.Module):
         batch = batch.repeat(self.walks_per_node)
         rowptr, col, _ = self.adj.csr()
         rw = random_walk(rowptr, col, batch, self.walk_length, self.p, self.q)
+        if not isinstance(rw, torch.Tensor):
+            rw = rw[0]
 
         walks = []
         num_walks_per_rw = 1 + self.walk_length + 1 - self.context_size
@@ -146,6 +147,8 @@ class Node2Vec(torch.nn.Module):
              multi_class='auto', *args, **kwargs):
         r"""Evaluates latent space quality via a logistic regression downstream
         task."""
+        from sklearn.linear_model import LogisticRegression
+
         clf = LogisticRegression(solver=solver, multi_class=multi_class, *args,
                                  **kwargs).fit(train_z.detach().cpu().numpy(),
                                                train_y.detach().cpu().numpy())

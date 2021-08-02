@@ -6,19 +6,16 @@ import pytest
 import torch
 from torch import Tensor
 from torch.nn import Linear
-from torch_sparse import SparseTensor
+from torch_scatter import scatter
 from torch_sparse.matmul import spmm
+from torch_sparse import SparseTensor
 from torch_geometric.nn import MessagePassing
 
 
 class MyConv(MessagePassing):
-
-    propagate_type = {'x': OptPairTensor, 'edge_weight': OptTensor}
-
     def __init__(self, in_channels: Union[int, Tuple[int, int]],
                  out_channels: int):
-        """"""
-        super(MyConv, self).__init__(aggr='add')
+        super().__init__(aggr='add')
 
         if isinstance(in_channels, int):
             in_channels = (in_channels, in_channels)
@@ -28,10 +25,10 @@ class MyConv(MessagePassing):
 
     def forward(self, x: Union[Tensor, OptPairTensor], edge_index: Adj,
                 edge_weight: OptTensor = None, size: Size = None) -> Tensor:
-        """"""
         if isinstance(x, Tensor):
             x: OptPairTensor = (x, x)
 
+        # propagate_type: (x: OptPairTensor, edge_weight: OptTensor)
         out = self.propagate(edge_index, x=x, edge_weight=edge_weight,
                              size=size)
         out = self.lin_l(out)
@@ -42,8 +39,8 @@ class MyConv(MessagePassing):
 
         return out
 
-    def message(self, x_j: Tensor, edge_weight: OptTensor) -> Tensor:
-        return x_j if edge_weight is None else x_j * edge_weight.view(-1, 1)
+    def message(self, x_j: Tensor, edge_weight: Tensor) -> Tensor:
+        return edge_weight.view(-1, 1) * x_j
 
     def message_and_aggregate(self, adj_t: SparseTensor,
                               x: OptPairTensor) -> Tensor:
@@ -154,7 +151,7 @@ def test_copy():
 
 class MyDefaultArgConv(MessagePassing):
     def __init__(self):
-        super(MyDefaultArgConv, self).__init__(aggr='mean')
+        super().__init__(aggr='mean')
 
     # propagate_type: (x: Tensor)
     def forward(self, x: Tensor, edge_index: Adj) -> Tensor:
@@ -177,3 +174,39 @@ def test_my_default_arg_conv():
     # This should not succeed in JIT mode.
     with pytest.raises(RuntimeError):
         torch.jit.script(conv.jittable())
+
+
+class MyMultipleOutputConv(MessagePassing):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x: Tensor, edge_index: Tensor) -> Tuple[Tensor, Tensor]:
+        # propagate_type: (x: Tensor)
+        return self.propagate(edge_index, x=x, size=None)
+
+    def message(self, x_j: Tensor) -> Tuple[Tensor, Tensor]:
+        return x_j, x_j
+
+    def aggregate(self, inputs: Tuple[Tensor, Tensor],
+                  index: Tensor) -> Tuple[Tensor, Tensor]:
+        return (scatter(inputs[0], index, dim=0, reduce='add'),
+                scatter(inputs[0], index, dim=0, reduce='mean'))
+
+    def update(self, inputs: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
+        return inputs
+
+
+def test_tuple_output():
+    conv = MyMultipleOutputConv()
+
+    x = torch.randn(4, 8)
+    edge_index = torch.tensor([[0, 1, 2, 3], [0, 0, 1, 1]])
+
+    out1 = conv(x, edge_index)
+    assert isinstance(out1, tuple) and len(out1) == 2
+
+    jit = torch.jit.script(conv.jittable())
+    out2 = jit(x, edge_index)
+    assert isinstance(out2, tuple) and len(out2) == 2
+    assert torch.allclose(out1[0], out2[0])
+    assert torch.allclose(out1[1], out2[1])

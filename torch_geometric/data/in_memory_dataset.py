@@ -1,13 +1,18 @@
+from typing import Optional, Callable, List, Union, Tuple, Dict
+
 import copy
 from itertools import repeat, product
 
 import torch
-from torch_geometric.data import Dataset
+from torch import Tensor
+
+from torch_geometric.data.data import Data
+from torch_geometric.data.dataset import Dataset, IndexType
 
 
 class InMemoryDataset(Dataset):
     r"""Dataset base class for creating graph datasets which fit completely
-    into memory.
+    into CPU memory.
     See `here <https://pytorch-geometric.readthedocs.io/en/latest/notes/
     create_dataset.html#creating-in-memory-datasets>`__ for the accompanying
     tutorial.
@@ -29,13 +34,13 @@ class InMemoryDataset(Dataset):
             final dataset. (default: :obj:`None`)
     """
     @property
-    def raw_file_names(self):
+    def raw_file_names(self) -> Union[str, List[str], Tuple]:
         r"""The name of the files to find in the :obj:`self.raw_dir` folder in
         order to skip the download."""
         raise NotImplementedError
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> Union[str, List[str], Tuple]:
         r"""The name of the files to find in the :obj:`self.processed_dir`
         folder in order to skip the processing."""
         raise NotImplementedError
@@ -48,44 +53,68 @@ class InMemoryDataset(Dataset):
         r"""Processes the dataset to the :obj:`self.processed_dir` folder."""
         raise NotImplementedError
 
-    def __init__(self, root=None, transform=None, pre_transform=None,
-                 pre_filter=None):
-        super(InMemoryDataset, self).__init__(root, transform, pre_transform,
-                                              pre_filter)
-        self.data, self.slices = None, None
+    def __init__(self, root: Optional[str] = None,
+                 transform: Optional[Callable] = None,
+                 pre_transform: Optional[Callable] = None,
+                 pre_filter: Optional[Callable] = None):
+        super().__init__(root, transform, pre_transform, pre_filter)
+        self.data = None
+        self.slices = None
+        self._data_list: Optional[List[Data]] = None
 
     @property
-    def num_classes(self):
+    def num_classes(self) -> int:
         r"""The number of classes in the dataset."""
         y = self.data.y
-        return y.max().item() + 1 if y.dim() == 1 else y.size(1)
+        if y is None:
+            return 0
+        elif y.numel() == y.size(0) and not torch.is_floating_point(y):
+            return int(self.data.y.max()) + 1
+        elif y.numel() == y.size(0) and torch.is_floating_point(y):
+            return torch.unique(y).numel()
+        else:
+            return self.data.y.size(-1)
 
-    def len(self):
+    def len(self) -> int:
         for item in self.slices.values():
             return len(item) - 1
         return 0
 
-    def get(self, idx):
-        data = self.data.__class__()
+    def get(self, idx: int) -> Data:
+        if hasattr(self, '_data_list'):
+            if self._data_list is None:
+                self._data_list = self.len() * [None]
+            else:
+                data = self._data_list[idx]
+                if data is not None:
+                    return copy.copy(data)
 
+        data = self.data.__class__()
         if hasattr(self.data, '__num_nodes__'):
             data.num_nodes = self.data.__num_nodes__[idx]
 
         for key in self.data.keys:
             item, slices = self.data[key], self.slices[key]
             start, end = slices[idx].item(), slices[idx + 1].item()
-            # print(slices[idx], slices[idx + 1])
             if torch.is_tensor(item):
                 s = list(repeat(slice(None), item.dim()))
-                s[self.data.__cat_dim__(key, item)] = slice(start, end)
+                cat_dim = self.data.__cat_dim__(key, item)
+                if cat_dim is None:
+                    cat_dim = 0
+                s[cat_dim] = slice(start, end)
             elif start + 1 == end:
                 s = slices[start]
             else:
                 s = slice(start, end)
             data[key] = item[s]
+
+        if hasattr(self, '_data_list'):
+            self._data_list[idx] = copy.copy(data)
+
         return data
 
-    def collate(self, data_list):
+    @staticmethod
+    def collate(data_list: List[Data]) -> Tuple[Data, Dict[str, Tensor]]:
         r"""Collates a python list of data objects to the internal storage
         format of :class:`torch_geometric.data.InMemoryDataset`."""
         keys = data_list[0].keys
@@ -97,9 +126,10 @@ class InMemoryDataset(Dataset):
 
         for item, key in product(data_list, keys):
             data[key].append(item[key])
-            if torch.is_tensor(item[key]):
-                s = slices[key][-1] + item[key].size(
-                    item.__cat_dim__(key, item[key]))
+            if isinstance(item[key], Tensor) and item[key].dim() > 0:
+                cat_dim = item.__cat_dim__(key, item[key])
+                cat_dim = 0 if cat_dim is None else cat_dim
+                s = slices[key][-1] + item[key].size(cat_dim)
             else:
                 s = slices[key][-1] + 1
             slices[key].append(s)
@@ -111,9 +141,15 @@ class InMemoryDataset(Dataset):
 
         for key in keys:
             item = data_list[0][key]
-            if torch.is_tensor(item):
-                data[key] = torch.cat(data[key],
-                                      dim=data.__cat_dim__(key, item))
+            if isinstance(item, Tensor) and len(data_list) > 1:
+                if item.dim() > 0:
+                    cat_dim = data.__cat_dim__(key, item)
+                    cat_dim = 0 if cat_dim is None else cat_dim
+                    data[key] = torch.cat(data[key], dim=cat_dim)
+                else:
+                    data[key] = torch.stack(data[key])
+            elif isinstance(item, Tensor):  # Don't duplicate attributes...
+                data[key] = data[key][0]
             elif isinstance(item, int) or isinstance(item, float):
                 data[key] = torch.tensor(data[key])
 
@@ -121,12 +157,14 @@ class InMemoryDataset(Dataset):
 
         return data, slices
 
-    def copy(self, idx=None):
+    def copy(self, idx: Optional[IndexType] = None):
         if idx is None:
             data_list = [self.get(i) for i in range(len(self))]
         else:
-            data_list = [self.get(i) for i in idx]
+            data_list = [self.get(i) for i in self.index_select(idx).indices()]
+
         dataset = copy.copy(self)
-        dataset.__indices__ = None
+        dataset._indices = None
+        dataset._data_list = data_list
         dataset.data, dataset.slices = self.collate(data_list)
         return dataset

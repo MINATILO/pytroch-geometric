@@ -5,7 +5,10 @@ from .sage_conv import SAGEConv
 from .graph_conv import GraphConv
 from .gravnet_conv import GravNetConv
 from .gated_graph_conv import GatedGraphConv
+from .res_gated_graph_conv import ResGatedGraphConv
 from .gat_conv import GATConv
+from .gatv2_conv import GATv2Conv
+from .transformer_conv import TransformerConv
 from .agnn_conv import AGNNConv
 from .tag_conv import TAGConv
 from .gin_conv import GINConv, GINEConv
@@ -13,10 +16,10 @@ from .arma_conv import ARMAConv
 from .sg_conv import SGConv
 from .appnp import APPNP
 from .mf_conv import MFConv
-from .rgcn_conv import RGCNConv
+from .rgcn_conv import RGCNConv, FastRGCNConv
 from .signed_conv import SignedConv
 from .dna_conv import DNAConv
-from .point_conv import PointConv
+from .point_conv import PointNetConv, PointConv
 from .gmm_conv import GMMConv
 from .spline_conv import SplineConv
 from .nn_conv import NNConv, ECConv
@@ -27,6 +30,16 @@ from .ppf_conv import PPFConv
 from .feast_conv import FeaStConv
 from .hypergraph_conv import HypergraphConv
 from .le_conv import LEConv
+from .pna_conv import PNAConv
+from .cluster_gcn_conv import ClusterGCNConv
+from .gen_conv import GENConv
+from .gcn2_conv import GCN2Conv
+from .pan_conv import PANConv
+from .wl_conv import WLConv
+from .film_conv import FiLMConv
+from .supergat_conv import SuperGATConv
+from .fa_conv import FAConv
+from .eg_conv import EGConv
 
 __all__ = [
     'MessagePassing',
@@ -36,7 +49,10 @@ __all__ = [
     'GraphConv',
     'GravNetConv',
     'GatedGraphConv',
+    'ResGatedGraphConv',
     'GATConv',
+    'GATv2Conv',
+    'TransformerConv',
     'AGNNConv',
     'TAGConv',
     'GINConv',
@@ -46,8 +62,10 @@ __all__ = [
     'APPNP',
     'MFConv',
     'RGCNConv',
+    'FastRGCNConv',
     'SignedConv',
     'DNAConv',
+    'PointNetConv',
     'PointConv',
     'GMMConv',
     'SplineConv',
@@ -61,4 +79,16 @@ __all__ = [
     'FeaStConv',
     'HypergraphConv',
     'LEConv',
+    'PNAConv',
+    'ClusterGCNConv',
+    'GENConv',
+    'GCN2Conv',
+    'PANConv',
+    'WLConv',
+    'FiLMConv',
+    'SuperGATConv',
+    'FAConv',
+    'EGConv',
 ]
+
+classes = __all__

@@ -2,7 +2,6 @@ import os
 import os.path as osp
 import shutil
 
-import h5py
 import torch
 from torch_geometric.data import (InMemoryDataset, Data, download_url,
                                   extract_zip)
@@ -11,7 +10,7 @@ from torch_geometric.data import (InMemoryDataset, Data, download_url,
 class S3DIS(InMemoryDataset):
     r"""The (pre-processed) Stanford Large-Scale 3D Indoor Spaces dataset from
     the `"3D Semantic Parsing of Large-Scale Indoor Spaces"
-    <http://buildingparser.stanford.edu/images/3D_Semantic_Parsing.pdf>`_
+    <https://openaccess.thecvf.com/content_cvpr_2016/papers/Armeni_3D_Semantic_Parsing_CVPR_2016_paper.pdf>`_
     paper, containing point clouds of six large-scale indoor parts in three
     buildings with 12 semantic elements (and one clutter class).
 
@@ -38,13 +37,8 @@ class S3DIS(InMemoryDataset):
     url = ('https://shapenet.cs.stanford.edu/media/'
            'indoor3d_sem_seg_hdf5_data.zip')
 
-    def __init__(self,
-                 root,
-                 test_area=6,
-                 train=True,
-                 transform=None,
-                 pre_transform=None,
-                 pre_filter=None):
+    def __init__(self, root, test_area=6, train=True, transform=None,
+                 pre_transform=None, pre_filter=None):
         assert test_area >= 1 and test_area <= 6
         self.test_area = test_area
         super(S3DIS, self).__init__(root, transform, pre_transform, pre_filter)
@@ -65,10 +59,12 @@ class S3DIS(InMemoryDataset):
         extract_zip(path, self.root)
         os.unlink(path)
         shutil.rmtree(self.raw_dir)
-        name = self.url.split(os.sep)[-1].split('.')[0]
+        name = self.url.split('/')[-1].split('.')[0]
         os.rename(osp.join(self.root, name), self.raw_dir)
 
     def process(self):
+        import h5py
+
         with open(self.raw_paths[0], 'r') as f:
             filenames = [x.split('/')[-1] for x in f.read().split('\n')[:-1]]
 

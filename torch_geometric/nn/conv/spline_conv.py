@@ -69,7 +69,7 @@ class SplineConv(MessagePassing):
         super(SplineConv, self).__init__(aggr=aggr, **kwargs)
 
         if spline_basis is None:
-            raise ImportError('`SplineConv` requires `torch-spline-conv`.')
+            raise ImportError("'SplineConv' requires 'torch-spline-conv'")
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -116,7 +116,7 @@ class SplineConv(MessagePassing):
         if not x[0].is_cuda:
             warnings.warn(
                 'We do not recommend using the non-optimized CPU version of '
-                '`SplineConv`. If possible, please convert your data to GPU.')
+                '`SplineConv`. If possible, please move your data to GPU.')
 
         # propagate_type: (x: OptPairTensor, edge_attr: OptTensor)
         out = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=size)
@@ -130,8 +130,7 @@ class SplineConv(MessagePassing):
 
         return out
 
-    def message(self, x_j: Tensor, edge_attr: OptTensor) -> Tensor:
-        assert edge_attr is not None
+    def message(self, x_j: Tensor, edge_attr: Tensor) -> Tensor:
         data = spline_basis(edge_attr, self.kernel_size, self.is_open_spline,
                             self.degree)
         return spline_weighting(x_j, self.weight, *data)

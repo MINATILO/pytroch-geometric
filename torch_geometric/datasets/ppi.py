@@ -5,8 +5,6 @@ import json
 
 import torch
 import numpy as np
-import networkx as nx
-from networkx.readwrite import json_graph
 from torch_geometric.data import (InMemoryDataset, Data, download_url,
                                   extract_zip)
 from torch_geometric.utils import remove_self_loops
@@ -38,13 +36,9 @@ class PPI(InMemoryDataset):
             final dataset. (default: :obj:`None`)
     """
 
-    url = 'https://s3.us-east-2.amazonaws.com/dgl.ai/dataset/ppi.zip'
+    url = 'https://data.dgl.ai/dataset/ppi.zip'
 
-    def __init__(self,
-                 root,
-                 split='train',
-                 transform=None,
-                 pre_transform=None,
+    def __init__(self, root, split='train', transform=None, pre_transform=None,
                  pre_filter=None):
 
         assert split in ['train', 'val', 'test']
@@ -74,6 +68,9 @@ class PPI(InMemoryDataset):
         os.unlink(path)
 
     def process(self):
+        import networkx as nx
+        from networkx.readwrite import json_graph
+
         for s, split in enumerate(['train', 'valid', 'test']):
             path = osp.join(self.raw_dir, '{}_graph.json').format(split)
             with open(path, 'r') as f:
@@ -93,7 +90,8 @@ class PPI(InMemoryDataset):
             for i in range(idx.max().item() + 1):
                 mask = idx == i
 
-                G_s = G.subgraph(mask.nonzero().view(-1).tolist())
+                G_s = G.subgraph(
+                    mask.nonzero(as_tuple=False).view(-1).tolist())
                 edge_index = torch.tensor(list(G_s.edges)).t().contiguous()
                 edge_index = edge_index - edge_index.min()
                 edge_index, _ = remove_self_loops(edge_index)

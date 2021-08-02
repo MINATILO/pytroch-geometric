@@ -1,5 +1,4 @@
 import torch
-import scipy.io
 from torch_geometric.data import InMemoryDataset, download_url, Data
 
 
@@ -24,13 +23,9 @@ class QM7b(InMemoryDataset):
             final dataset. (default: :obj:`None`)
     """
 
-    url = 'http://deepchem.io.s3-website-us-west-1.amazonaws.com/' \
-          'datasets/qm7b.mat'
+    url = 'https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/qm7b.mat'
 
-    def __init__(self,
-                 root,
-                 transform=None,
-                 pre_transform=None,
+    def __init__(self, root, transform=None, pre_transform=None,
                  pre_filter=None):
         super(QM7b, self).__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -47,13 +42,16 @@ class QM7b(InMemoryDataset):
         download_url(self.url, self.raw_dir)
 
     def process(self):
-        data = scipy.io.loadmat(self.raw_paths[0])
+        from scipy.io import loadmat
+
+        data = loadmat(self.raw_paths[0])
         coulomb_matrix = torch.from_numpy(data['X'])
         target = torch.from_numpy(data['T']).to(torch.float)
 
         data_list = []
         for i in range(target.shape[0]):
-            edge_index = coulomb_matrix[i].nonzero().t().contiguous()
+            edge_index = coulomb_matrix[i].nonzero(
+                as_tuple=False).t().contiguous()
             edge_attr = coulomb_matrix[i, edge_index[0], edge_index[1]]
             y = target[i].view(1, -1)
             data = Data(edge_index=edge_index, edge_attr=edge_attr, y=y)

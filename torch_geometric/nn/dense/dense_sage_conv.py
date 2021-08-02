@@ -5,6 +5,14 @@ from torch.nn import Linear
 
 class DenseSAGEConv(torch.nn.Module):
     r"""See :class:`torch_geometric.nn.conv.SAGEConv`.
+
+    .. note::
+
+        :class:`~torch_geometric.nn.dense.DenseSAGEConv` expects to work on
+        binary adjacency matrices.
+        If you want to make use of weighted dense adjacency matrices, please
+        use :class:`torch_geometric.nn.dense.DenseGraphConv` instead.
+
     """
     def __init__(self, in_channels, out_channels, normalize=False, bias=True):
         super(DenseSAGEConv, self).__init__()
@@ -36,9 +44,6 @@ class DenseSAGEConv(torch.nn.Module):
             mask (BoolTensor, optional): Mask matrix
                 :math:`\mathbf{M} \in {\{ 0, 1 \}}^{B \times N}` indicating
                 the valid nodes for each graph. (default: :obj:`None`)
-            add_loop (bool, optional): If set to :obj:`False`, the layer will
-                not automatically add self-loops to the adjacency matrices.
-                (default: :obj:`True`)
         """
         x = x.unsqueeze(0) if x.dim() == 2 else x
         adj = adj.unsqueeze(0) if adj.dim() == 2 else adj

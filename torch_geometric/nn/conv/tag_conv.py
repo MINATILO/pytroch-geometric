@@ -10,15 +10,17 @@ from torch_geometric.nn.conv.gcn_conv import gcn_norm
 
 class TAGConv(MessagePassing):
     r"""The topology adaptive graph convolutional networks operator from the
-     `"Topology Adaptive Graph Convolutional Networks"
-     <https://arxiv.org/abs/1710.10370>`_ paper
+    `"Topology Adaptive Graph Convolutional Networks"
+    <https://arxiv.org/abs/1710.10370>`_ paper
 
     .. math::
-        \mathbf{X}^{\prime} = \sum_{k=0}^K \mathbf{D}^{-1/2} \mathbf{A}^k
-        \mathbf{D}^{-1/2}\mathbf{X} \mathbf{\Theta}_{k},
+        \mathbf{X}^{\prime} = \sum_{k=0}^K \left( \mathbf{D}^{-1/2} \mathbf{A}
+        \mathbf{D}^{-1/2} \right)^k \mathbf{X} \mathbf{\Theta}_{k},
 
     where :math:`\mathbf{A}` denotes the adjacency matrix and
     :math:`D_{ii} = \sum_{j=0} A_{ij}` its diagonal degree matrix.
+    The adjacency matrix can include other values than :obj:`1` representing
+    edge weights via the optional :obj:`edge_weight` tensor.
 
     Args:
         in_channels (int): Size of each input sample.
@@ -33,7 +35,8 @@ class TAGConv(MessagePassing):
     """
     def __init__(self, in_channels: int, out_channels: int, K: int = 3,
                  bias: bool = True, normalize: bool = True, **kwargs):
-        super(TAGConv, self).__init__(aggr='add', **kwargs)
+        kwargs.setdefault('aggr', 'add')
+        super(TAGConv, self).__init__(**kwargs)
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -70,8 +73,7 @@ class TAGConv(MessagePassing):
         return self.lin(torch.cat(xs, dim=-1))
 
     def message(self, x_j: Tensor, edge_weight: OptTensor) -> Tensor:
-        assert edge_weight is not None
-        return edge_weight.view(-1, 1) * x_j
+        return x_j if edge_weight is None else edge_weight.view(-1, 1) * x_j
 
     def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
         return matmul(adj_t, x, reduce=self.aggr)

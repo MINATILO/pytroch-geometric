@@ -1,3 +1,6 @@
+from typing import List, Optional, Set, get_type_hints
+from torch_geometric.typing import Adj, Size
+
 import os
 import re
 import inspect
@@ -5,8 +8,6 @@ import os.path as osp
 from uuid import uuid1
 from itertools import chain
 from inspect import Parameter
-from typing import List, Optional, Set
-from torch_geometric.typing import Adj, Size
 
 import torch
 from torch import Tensor
@@ -47,10 +48,10 @@ class MessagePassing(torch.nn.Module):
             (default: :obj:`-2`)
     """
 
-    special_args: Set[str] = set([
-        'edge_index_i', 'edge_index_j', 'size_i', 'size_j', 'ptr', 'index',
-        'dim_size'
-    ])
+    special_args: Set[str] = {
+        'edge_index', 'adj_t', 'edge_index_i', 'edge_index_j', 'size',
+        'size_i', 'size_j', 'ptr', 'index', 'dim_size'
+    }
 
     def __init__(self, aggr: Optional[str] = "add",
                  flow: str = "source_to_target", node_dim: int = -2):
@@ -160,16 +161,23 @@ class MessagePassing(torch.nn.Module):
                 out[arg] = data
 
         if isinstance(edge_index, Tensor):
+            out['adj_t'] = None
+            out['edge_index'] = edge_index
             out['edge_index_i'] = edge_index[i]
             out['edge_index_j'] = edge_index[j]
             out['ptr'] = None
         elif isinstance(edge_index, SparseTensor):
+            out['adj_t'] = edge_index
+            out['edge_index'] = None
             out['edge_index_i'] = edge_index.storage.row()
             out['edge_index_j'] = edge_index.storage.col()
             out['ptr'] = edge_index.storage.rowptr()
-            out['edge_attr'] = out['edge_weight'] = edge_index.storage.value()
+            out['edge_weight'] = edge_index.storage.value()
+            out['edge_attr'] = edge_index.storage.value()
+            out['edge_type'] = edge_index.storage.value()
 
         out['index'] = out['edge_index_i']
+        out['size'] = size
         out['size_i'] = size[1] or size[0]
         out['size_j'] = size[0] or size[1]
         out['dim_size'] = out['size_i']
@@ -180,9 +188,9 @@ class MessagePassing(torch.nn.Module):
         r"""The initial call to start propagating messages.
 
         Args:
-            adj (Tensor or SparseTensor): A :obj:`torch.LongTensor` or a
+            edge_index (Tensor or SparseTensor): A :obj:`torch.LongTensor` or a
                 :obj:`torch_sparse.SparseTensor` that defines the underlying
-                message propagation.
+                graph connectivity/message passing flow.
                 :obj:`edge_index` holds the indices of a general (sparse)
                 assignment matrix of shape :obj:`[N, M]`.
                 If :obj:`edge_index` is of type :obj:`torch.LongTensor`, its
@@ -236,11 +244,11 @@ class MessagePassing(torch.nn.Module):
                 edge_mask = self.__edge_mask__.sigmoid()
                 # Some ops add self-loops to `edge_index`. We need to do the
                 # same for `edge_mask` (but do not train those).
-                if out.size(0) != edge_mask.size(0):
+                if out.size(self.node_dim) != edge_mask.size(0):
                     loop = edge_mask.new_ones(size[0])
                     edge_mask = torch.cat([edge_mask, loop], dim=0)
-                assert out.size(0) == edge_mask.size(0)
-                out = out * edge_mask.view(-1, 1)
+                assert out.size(self.node_dim) == edge_mask.size(0)
+                out = out * edge_mask.view([-1] + [1] * (out.dim() - 1))
 
             aggr_kwargs = self.inspector.distribute('aggregate', coll_dict)
             out = self.aggregate(out, **aggr_kwargs)
@@ -329,6 +337,11 @@ class MessagePassing(torch.nn.Module):
             prop_types = split_types_repr(match.group(1))
             prop_types = dict([re.split(r'\s*:\s*', t) for t in prop_types])
 
+        type_hints = get_type_hints(self.__class__.update)
+        prop_return_type = type_hints.get('return', 'Tensor')
+        if str(prop_return_type)[:6] == '<class':
+            prop_return_type = prop_return_type.__name__
+
         # Parse `__collect__()` types to format `{arg:1, type1, ...}`.
         collect_types = self.inspector.types(
             ['message', 'aggregate', 'update'])
@@ -360,6 +373,8 @@ class MessagePassing(torch.nn.Module):
             cls_name=cls_name,
             parent_cls_name=self.__class__.__name__,
             prop_types=prop_types,
+            prop_return_type=prop_return_type,
+            fuse=self.fuse,
             collect_types=collect_types,
             user_args=self.__user_args__,
             forward_header=forward_header,
